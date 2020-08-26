@@ -9,31 +9,83 @@ import {
     Alert
   } from 'react-native'
 
+
 import backgroundImage  from '../../assets/imgs/login.jpg'
 import commonStyles from '../commonStyles'
 
 import AuthInput from '../components/AuthInput'
 
+import {server, showError, showSuccess} from '../common'
+import axios from 'axios'
+import AsyncStorage from '@react-native-community/async-storage'
+
+const initialStage = {
+  name: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  stageNew: false
+}
+
 export default class Auth extends Component {
 
   state = {
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    stageNew: false
+    ... initialStage
   }
 
   signinOrSigup = () => {
     if (this.state.stageNew) {
-      Alert.alert('Sucesso!', 'Cria Conta')
+      this.signup()
     }
-    else{
-      Alert.alert('Sucesso!', 'Logar')
+    else {
+      this.signin()
+    }
+  }
+
+  signup = async () => {
+    try {
+     await axios.post(`${server}/signup`, {
+      name: this.state.name,
+      email: this.state.email,
+      password: this.state.password,
+      confirmPassword: this.state.confirmPassword
+     })
+     showSuccess('Usuário Cadastrado!')
+     this.setState({...initialStage})
+    }
+    catch (error) {
+      showError(e)
+    }
+  }
+
+
+  signin = async () => {
+    try {
+      const res = await axios.post(`${server}/signin`, {
+        email: this.state.email,
+        password: this.state.password
+      })
+
+      AsyncStorage.setItem('userData', JSON.stringify(res.data))
+      axios.defaults.headers.common['Authorization'] = `bearer ${res.data.token}`
+      this.props.navigation.navigate('Home', res.data)
+    }
+    catch (error) {
+      showError(error)
     }
   }
 
   render() {
+
+    const validations = []
+    validations.push(this.state.email && this.state.email.includes('@'))
+    validations.push(this.state.password && this.state.password.length >= 6)
+    if (this.state.stageNew) {
+      validations.push(this.state.name && this.state.name.trim().length >=3)
+      validations.push(this.state.password === this.state.confirmPassword)
+    }
+    const validForm = validations.reduce((t,a) => t && a)
+
     return (
       <ImageBackground source={backgroundImage} style={styles.background}>
         <Text style={styles.title}>Tasks</Text>
@@ -46,7 +98,7 @@ export default class Auth extends Component {
                 <AuthInput icon='user' placeholder='Nome'
                 value={this.state.name}
                 style={styles.input}
-                onChangeText={email => this.setState({name})}
+                onChangeText={name => this.setState({name})}
               />
             }
 
@@ -60,19 +112,20 @@ export default class Auth extends Component {
               value={this.state.password}
               style={styles.input}
               secureTextEntry={true}
-              onChangeText={email => this.setState({password})}
+              onChangeText={password => this.setState({password})}
             />
 
             { this.state.stageNew &&
               <AuthInput icon='asterisk' placeholder='Confirmação de Senha'
                 value={this.state.confirmPassword}
                 style={styles.input}
-                onChangeText={email => this.setState({confirmPassword})}
+                onChangeText={confirmPassword => this.setState({confirmPassword})}
               />
             }
 
-            <TouchableOpacity style={styles.button}
+            <TouchableOpacity style={[styles.button, validForm ? {} : {backgroundColor: '#AAA'}]}
               onPress={this.signinOrSigup}
+              disabled={!validForm}
             >
               <View>
                 <Text style={styles.buttonText}>
@@ -83,7 +136,7 @@ export default class Auth extends Component {
          </View>
          <TouchableOpacity style={{padding: 10}} onPress={ () => { this.setState({stageNew: !this.state.stageNew})}}>
             <Text style={styles.buttonText}>
-            {this.state.stageNew ? 'Já possui conta?' : 'Ainda não possui conta?'}
+              {this.state.stageNew ? 'Já possui conta?' : 'Ainda não possui conta?'}
             </Text>
          </TouchableOpacity>
       </ImageBackground>
